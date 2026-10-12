@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Correctness (Triton interpreter on CPU)
+    runs-on: ubuntu-latest
+    env:
+      TRITON_INTERPRET: "1"
+      KERNEL_LAB_NO_CUDA: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install CPU PyTorch and Triton
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install triton numpy pytest ruff
+          pip install -e . --no-build-isolation
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -q -ra
+
+  cuda:
+    name: CUDA kernels compile (sm_80, sm_86, sm_89, sm_90)
+    runs-on: ubuntu-latest
+    container: nvidia/cuda:12.6.3-devel-ubuntu24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile with warnings as errors
+        run: |
+          set -e
+          for f in csrc/rmsnorm.cu csrc/paged_attention.cu; do
+            echo "::group::$f"
+            nvcc -std=c++17 -O3 -Icsrc \
+              -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ \
+              -gencode arch=compute_80,code=sm_80 -gencode arch=compute_86,code=sm_86 \
+              -gencode arch=compute_89,code=sm_89 -gencode arch=compute_90,code=sm_90 \
+              -Werror all-warnings -Xcompiler -Wall,-Wextra -Xptxas -v \
+              -c "$f" -o /tmp/$(basename "$f").o 2> /tmp/$(basename "$f").log
+            grep -E "Used [0-9]+ registers|spill" /tmp/$(basename "$f").log | sort | uniq -c | sort -rn | head -5
+            echo "::endgroup::"
+          done
