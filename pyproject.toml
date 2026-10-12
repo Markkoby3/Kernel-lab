@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69", "wheel", "torch>=2.4"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kernel-lab"
+version = "0.1.0"
+description = "LLM inference kernels (RMSNorm, paged-KV decode attention) in Triton and CUDA, with PyTorch references, roofline benchmarks and CPU-runnable tests."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Mark Osei Kwabi" }]
+dependencies = ["torch>=2.4", "triton>=3.0", "numpy"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[tool.setuptools.packages.find]
+include = ["kernel_lab*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+# N806/E741: kernel code uses math-style names (Q, K, V, l_i).
+ignore = ["E741"]
